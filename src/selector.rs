@@ -372,45 +372,58 @@ fn draw_selection(pixels: &mut [u8], w: u32, h: u32, ax: i32, ay: i32, bx: i32, 
     fill_rect(pixels, w, bx2 - border + 1, by1 + border, bx2, by2 - border, white);
 }
 
-/// Draw a crosshair (+) cursor at (cx, cy) in white.
+/// Draw a crosshair (+) cursor at (cx, cy): black line with a 1px white border.
 fn draw_crosshair(pixels: &mut [u8], w: u32, h: u32, cx: u32, cy: u32) {
-    let arm: u32 = 14; // half-length of each arm in pixels
-    let gap: u32 = 3;  // gap around the centre point
-    let thick: u32 = 1; // half-thickness (total line width = 2*thick+1 = 3px)
-    let colour = 0xFFFFFFFFu32; // opaque white
+    let arm: u32 = 8;   // half-length of each arm in pixels
+    let gap: u32 = 1;   // gap around the centre point
+    let thick: u32 = 1; // half-thickness of black line (total width = 2*thick+1 = 3px)
+    let border: u32 = 1; // white outline width (drawn first, black drawn on top)
 
-    // Horizontal arms (left and right of centre gap)
-    let y0 = cy.saturating_sub(thick);
-    let y1 = (cy + thick).min(h.saturating_sub(1));
-    // left arm
-    let lx0 = cx.saturating_sub(arm);
-    let lx1 = cx.saturating_sub(gap + 1);
-    if lx1 >= lx0 { fill_rect(pixels, w, lx0, y0, lx1, y1, colour); }
-    // right arm
-    let rx0 = (cx + gap + 1).min(w.saturating_sub(1));
-    let rx1 = (cx + arm).min(w.saturating_sub(1));
-    if rx1 >= rx0 { fill_rect(pixels, w, rx0, y0, rx1, y1, colour); }
+    // Draw white outline then black line. The white pass uses arm+border so the
+    // white cap is visible at the outer tip of each arm, not just on the sides.
+    for &(colour, t, arm_ext) in &[
+        (0xFFFFFFFFu32, thick + border, arm + border),
+        (0xFF000000u32, thick,          arm),
+    ] {
+        // Horizontal arms
+        let hy0 = cy.saturating_sub(t);
+        let hy1 = (cy + t).min(h.saturating_sub(1));
+        let lx0 = cx.saturating_sub(arm_ext);
+        let lx1 = cx.saturating_sub(gap + 1);
+        if lx1 >= lx0 { fill_rect(pixels, w, lx0, hy0, lx1, hy1, colour); }
+        let rx0 = (cx + gap + 1).min(w.saturating_sub(1));
+        let rx1 = (cx + arm_ext).min(w.saturating_sub(1));
+        if rx1 >= rx0 { fill_rect(pixels, w, rx0, hy0, rx1, hy1, colour); }
 
-    // Vertical arms (above and below centre gap)
-    let x0 = cx.saturating_sub(thick);
-    let x1 = (cx + thick).min(w.saturating_sub(1));
-    // top arm
-    let ty0 = cy.saturating_sub(arm);
-    let ty1 = cy.saturating_sub(gap + 1);
-    if ty1 >= ty0 { fill_rect(pixels, w, x0, ty0, x1, ty1, colour); }
-    // bottom arm
-    let by0 = (cy + gap + 1).min(h.saturating_sub(1));
-    let by1 = (cy + arm).min(h.saturating_sub(1));
-    if by1 >= by0 { fill_rect(pixels, w, x0, by0, x1, by1, colour); }
+        // Vertical arms
+        let vx0 = cx.saturating_sub(t);
+        let vx1 = (cx + t).min(w.saturating_sub(1));
+        let ty0 = cy.saturating_sub(arm_ext);
+        let ty1 = cy.saturating_sub(gap + 1);
+        if ty1 >= ty0 { fill_rect(pixels, w, vx0, ty0, vx1, ty1, colour); }
+        let by0 = (cy + gap + 1).min(h.saturating_sub(1));
+        let by1 = (cy + arm_ext).min(h.saturating_sub(1));
+        if by1 >= by0 { fill_rect(pixels, w, vx0, by0, vx1, by1, colour); }
+    }
+
+    // The dim overlay shows through the centre gap, making it look like a dark
+    // square framed by the arm borders. Clear it to fully transparent so the
+    // screen content is visible at the exact cursor position.
+    fill_rect(
+        pixels, w,
+        cx.saturating_sub(gap), cy.saturating_sub(gap),
+        (cx + gap).min(w - 1),  (cy + gap).min(h - 1),
+        0x00000000,
+    );
 }
 
 /// Bounding box of the crosshair for incremental damage tracking.
 fn crosshair_bbox(cx: u32, cy: u32, w: u32, h: u32) -> (u32, u32, u32, u32) {
-    let arm: u32 = 14;
-    let x1 = cx.saturating_sub(arm);
-    let y1 = cy.saturating_sub(arm);
-    let x2 = (cx + arm).min(w.saturating_sub(1));
-    let y2 = (cy + arm).min(h.saturating_sub(1));
+    let extent: u32 = 8 + 1; // arm + border
+    let x1 = cx.saturating_sub(extent);
+    let y1 = cy.saturating_sub(extent);
+    let x2 = (cx + extent).min(w.saturating_sub(1));
+    let y2 = (cy + extent).min(h.saturating_sub(1));
     (x1, y1, x2, y2)
 }
 
