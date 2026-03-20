@@ -16,6 +16,7 @@ use wayland_protocols_wlr::layer_shell::v1::client::{zwlr_layer_shell_v1, zwlr_l
 
 const BTN_LEFT: u32 = 0x110;
 const BTN_RIGHT: u32 = 0x111;
+const KEY_ESC: u32 = 1; // evdev keycode
 
 // The mmap pointer is only ever accessed from the single-threaded event loop
 unsafe impl Send for SelectorState {}
@@ -354,8 +355,6 @@ fn draw_selection(pixels: &mut [u8], w: u32, h: u32, ax: i32, ay: i32, bx: i32, 
     // Left and right edges (between top and bottom)
     fill_rect(pixels, w, bx1, by1 + border, bx1 + border - 1, by2 - border, white);
     fill_rect(pixels, w, bx2 - border + 1, by1 + border, bx2, by2 - border, white);
-
-    let _ = h; // suppress unused warning
 }
 
 /// Draw a crosshair (+) cursor at (cx, cy) in white.
@@ -571,9 +570,8 @@ impl Dispatch<wl_keyboard::WlKeyboard, ()> for SelectorState {
         _: &Connection,
         _qh: &QueueHandle<Self>,
     ) {
-        // ESC = evdev keycode 1
         if let wl_keyboard::Event::Key {
-            key: 1,
+            key: KEY_ESC,
             state: WEnum::Value(wl_keyboard::KeyState::Pressed),
             ..
         } = event

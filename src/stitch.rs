@@ -15,6 +15,9 @@ use anyhow::{anyhow, Result};
 use image::RgbaImage;
 use std::collections::HashMap;
 
+/// Minimum number of row votes required to trust a scroll offset detection.
+const MIN_SCROLL_VOTES: usize = 5;
+
 // ── Row comparison helpers ───────────────────────────────────────────────────
 
 /// Full-width SAD between one row of `a` and one row of `b`.
@@ -91,7 +94,7 @@ fn find_scroll_offset(prev: &RgbaImage, next: &RgbaImage) -> Option<u32> {
     }
 
     match sorted.first() {
-        Some(&(s, count)) if count >= 5 => {
+        Some(&(s, count)) if count >= MIN_SCROLL_VOTES => {
             eprintln!("  stitch: scroll={} ({} votes)", s, count);
             Some(s as u32)
         }

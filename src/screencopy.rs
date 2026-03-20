@@ -20,6 +20,21 @@ use wayland_protocols_wlr::virtual_pointer::v1::client::{
     zwlr_virtual_pointer_manager_v1, zwlr_virtual_pointer_v1,
 };
 
+// ── Tuning parameters ─────────────────────────────────────────────────────────
+
+/// Average per-channel pixel difference below which two frames are "the same".
+const DIFF_THRESHOLD: f64 = 1.5;
+/// Number of consecutive unchanged frames before capture stops.
+const STOP_STREAK: usize = 2;
+/// Maximum frames to capture regardless of content changes.
+const MAX_FRAMES: usize = 200;
+/// Milliseconds to wait after each scroll for the page to re-render.
+const SETTLE_MS: u64 = 200;
+/// Discrete scroll wheel ticks per step (balance between speed and overlap).
+const SCROLL_TICKS: i32 = 2;
+/// Maximum attempts to wait for the first frame to stabilize (e.g. lazy images).
+const STABILIZE_ATTEMPTS: usize = 10;
+
 // ── Capture state ─────────────────────────────────────────────────────────────
 
 #[derive(Default)]
@@ -440,19 +455,16 @@ pub fn capture_scrolling(region: Rect) -> Result<Vec<RgbaImage>> {
     }
 
     let mut frames: Vec<RgbaImage> = Vec::new();
-    let max_frames = 200;
-    // Number of consecutive "no change" captures before we stop
-    let stop_threshold = 2;
     let mut no_change_streak = 0;
 
     // Capture first frame, then wait for it to stabilize (lazy-loaded images, etc.)
     let first = capture_one(&mut state, &mut queue, region)?;
     frames.push(first);
-    for attempt in 0..10 {
-        std::thread::sleep(std::time::Duration::from_millis(200));
+    for attempt in 0..STABILIZE_ATTEMPTS {
+        std::thread::sleep(std::time::Duration::from_millis(SETTLE_MS));
         let probe = capture_one(&mut state, &mut queue, region)?;
         let diff = frame_diff(frames.last().unwrap(), &probe);
-        if diff < 1.5 {
+        if diff < DIFF_THRESHOLD {
             if attempt > 0 {
                 eprintln!("  initial frame stabilized after {} extra captures", attempt + 1);
             }
@@ -463,24 +475,23 @@ pub fn capture_scrolling(region: Rect) -> Result<Vec<RgbaImage>> {
     }
 
     loop {
-        if frames.len() >= max_frames {
-            eprintln!("Reached frame limit ({max_frames}), stopping.");
+        if frames.len() >= MAX_FRAMES {
+            eprintln!("Reached frame limit ({MAX_FRAMES}), stopping.");
             break;
         }
 
-        // Scroll down (2 ticks — balance between speed and reliable overlap)
-        scroll_down(&mut state, &mut queue, region, 2)?;
+        scroll_down(&mut state, &mut queue, region, SCROLL_TICKS)?;
 
         // Wait for the page to render
-        std::thread::sleep(std::time::Duration::from_millis(200));
+        std::thread::sleep(std::time::Duration::from_millis(SETTLE_MS));
 
         let frame = capture_one(&mut state, &mut queue, region)?;
         let diff = frame_diff(frames.last().unwrap(), &frame);
         eprintln!("  frame {}: diff={:.2}", frames.len() + 1, diff);
 
-        if diff < 1.5 {
+        if diff < DIFF_THRESHOLD {
             no_change_streak += 1;
-            if no_change_streak >= stop_threshold {
+            if no_change_streak >= STOP_STREAK {
                 eprintln!("Content stopped changing — reached bottom.");
                 break;
             }
