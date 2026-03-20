@@ -53,7 +53,7 @@ struct SelectorState {
     // Overlay buffer: mmap'd shared memory written directly on each redraw
     overlay_mmap: *mut u8,   // null if not yet allocated
     overlay_mmap_size: usize,
-    overlay_file: Option<tempfile::NamedTempFile>,
+    overlay_file: Option<std::fs::File>,
     overlay_buffer: Option<wl_buffer::WlBuffer>,
     // Previous selection bounding box (normalised), for incremental damage
     prev_sel: Option<(u32, u32, u32, u32)>, // x1,y1,x2,y2
@@ -161,10 +161,9 @@ impl SelectorState {
 
         // S3: cast before multiplying to avoid u32 overflow on very large screens.
         let buf_size = (w as usize) * (h as usize) * 4;
-        let file = tempfile::NamedTempFile::new()
-            .context("failed to create tempfile for overlay buffer")?;
-        file.as_file()
-            .set_len(buf_size as u64)
+        let file = tempfile::tempfile()
+            .context("failed to create anonymous file for overlay buffer")?;
+        file.set_len(buf_size as u64)
             .context("failed to set overlay buffer size")?;
 
         // mmap the file so redraw() can write directly to memory
@@ -174,7 +173,7 @@ impl SelectorState {
                 buf_size,
                 libc::PROT_READ | libc::PROT_WRITE,
                 libc::MAP_SHARED,
-                std::os::unix::io::AsRawFd::as_raw_fd(file.as_file()),
+                std::os::unix::io::AsRawFd::as_raw_fd(&file),
                 0,
             )
         };

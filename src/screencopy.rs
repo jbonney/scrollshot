@@ -57,7 +57,7 @@ struct CaptureState {
     // Per-capture session
     current_frame_id: u32,    // incremented for each capture; events from old IDs are ignored
     frame_info: FrameInfo,
-    capture_buf_file: Option<tempfile::NamedTempFile>,
+    capture_buf_file: Option<std::fs::File>,
     capture_buf: Option<wl_buffer::WlBuffer>,
 
     // Output size (for virtual pointer motion_absolute)
@@ -187,11 +187,11 @@ impl Dispatch<zwlr_screencopy_frame_v1::ZwlrScreencopyFrameV1, u32> for CaptureS
                 };
 
                 let buf_size = (stride * height) as usize;
-                let mut file = match tempfile::NamedTempFile::new() {
+                let file = match tempfile::tempfile() {
                     Ok(f) => f,
                     Err(_) => { state.frame_info.failed = true; return; }
                 };
-                if file.as_file_mut().set_len(buf_size as u64).is_err() {
+                if file.set_len(buf_size as u64).is_err() {
                     state.frame_info.failed = true;
                     return;
                 }
