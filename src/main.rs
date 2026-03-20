@@ -42,7 +42,7 @@ fn main() -> Result<()> {
     // Small delay so the overlay is fully gone before we start scrolling
     std::thread::sleep(std::time::Duration::from_millis(150));
 
-    let (frames, diffs) = screencopy::capture_scrolling(region)?;
+    let frames = screencopy::capture_scrolling(region)?;
     eprintln!("Captured {} frames", frames.len());
 
     if frames.is_empty() {
@@ -51,7 +51,7 @@ fn main() -> Result<()> {
     }
 
     eprintln!("Stitching...");
-    let result = stitch::stitch_frames(frames, diffs)?;
+    let result = stitch::stitch_frames(frames)?;
     result.save(&output_path)?;
     eprintln!("Saved to: {}", output_path.display());
 

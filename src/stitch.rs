@@ -136,7 +136,7 @@ fn find_seam(prev: &RgbaImage, next: &RgbaImage, scroll: u32) -> u32 {
 
 // ── Public entry point ─────────────────────────────────────────────────────
 
-pub fn stitch_frames(frames: Vec<RgbaImage>, _diffs: Vec<f64>) -> Result<RgbaImage> {
+pub fn stitch_frames(frames: Vec<RgbaImage>) -> Result<RgbaImage> {
     if frames.is_empty() {
         return Err(anyhow!("no frames to stitch"));
     }
@@ -147,11 +147,13 @@ pub fn stitch_frames(frames: Vec<RgbaImage>, _diffs: Vec<f64>) -> Result<RgbaIma
     let frame_w = frames[0].width();
     let frame_h = frames[0].height() as usize;
 
-    // Debug: save each raw frame for inspection.
-    for (i, frame) in frames.iter().enumerate() {
-        let path = format!("frame_{}.png", i + 1);
-        if let Err(e) = frame.save(&path) {
-            eprintln!("  stitch: could not save {}: {}", path, e);
+    // Debug: save each raw frame for inspection (opt-in via SCROLLSHOT_DEBUG=1).
+    if std::env::var_os("SCROLLSHOT_DEBUG").is_some() {
+        for (i, frame) in frames.iter().enumerate() {
+            let path = format!("frame_{}.png", i + 1);
+            if let Err(e) = frame.save(&path) {
+                eprintln!("  stitch: could not save {}: {}", path, e);
+            }
         }
     }
 

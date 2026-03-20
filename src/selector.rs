@@ -2,7 +2,7 @@
 //! click-drag to choose a rectangle.  Returns `None` on ESC or right-click.
 
 use crate::Rect;
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Result, Context};
 use std::os::fd::AsFd;
 use wayland_client::{
     delegate_noop,
@@ -66,6 +66,7 @@ struct SelectorState {
 
     done: bool,
     cancelled: bool,
+    init_error: Option<String>,
 }
 
 impl SelectorState {
@@ -98,6 +99,7 @@ impl SelectorState {
             drag_end: None,
             done: false,
             cancelled: false,
+            init_error: None,
         }
     }
 
@@ -138,20 +140,24 @@ impl SelectorState {
     }
 
     /// Allocate the mmap'd SHM buffer at canvas size.
-    fn init_overlay(&mut self, qh: &QueueHandle<Self>) {
+    fn init_overlay(&mut self, qh: &QueueHandle<Self>) -> Result<()> {
         let shm = match self.shm.as_ref() {
             Some(s) => s,
-            None => return,
+            None => return Ok(()),
         };
         let w = self.canvas_w;
         let h = self.canvas_h;
         if w == 0 || h == 0 {
-            return;
+            return Ok(());
         }
 
-        let buf_size = (w * h * 4) as usize;
-        let file = tempfile::NamedTempFile::new().expect("tempfile for overlay");
-        file.as_file().set_len(buf_size as u64).expect("set_len");
+        // S3: cast before multiplying to avoid u32 overflow on very large screens.
+        let buf_size = (w as usize) * (h as usize) * 4;
+        let file = tempfile::NamedTempFile::new()
+            .context("failed to create tempfile for overlay buffer")?;
+        file.as_file()
+            .set_len(buf_size as u64)
+            .context("failed to set overlay buffer size")?;
 
         // mmap the file so redraw() can write directly to memory
         let ptr = unsafe {
@@ -164,7 +170,9 @@ impl SelectorState {
                 0,
             )
         };
-        assert!(ptr != libc::MAP_FAILED, "mmap failed for overlay buffer");
+        if ptr == libc::MAP_FAILED {
+            return Err(anyhow!("mmap failed for overlay buffer (errno {})", unsafe { *libc::__errno_location() }));
+        }
 
         self.overlay_mmap = ptr as *mut u8;
         self.overlay_mmap_size = buf_size;
@@ -191,6 +199,7 @@ impl SelectorState {
 
         self.overlay_file = Some(file);
         self.overlay_buffer = Some(buffer);
+        Ok(())
     }
 
     /// Rate-limited redraw: if a frame is already in-flight, queue the selection
@@ -462,8 +471,12 @@ impl Dispatch<zwlr_layer_surface_v1::ZwlrLayerSurfaceV1, ()> for SelectorState {
             // Compositor tells us the actual surface size
             state.canvas_w = if width > 0 { width } else { state.screen_w };
             state.canvas_h = if height > 0 { height } else { state.screen_h };
-            // Allocate buffer at the correct size and draw the initial overlay
-            state.init_overlay(qh);
+            // Allocate buffer at the correct size and draw the initial overlay.
+            if let Err(e) = state.init_overlay(qh) {
+                state.init_error = Some(format!("{e:#}"));
+                state.done = true;
+                return;
+            }
             state.schedule_redraw(qh, None);
         }
     }
@@ -635,6 +648,9 @@ pub fn select_region() -> Result<Option<Rect>> {
         queue.blocking_dispatch(&mut state)?;
     }
 
+    if let Some(msg) = &state.init_error {
+        return Err(anyhow!("{msg}"));
+    }
     if state.cancelled {
         return Ok(None);
     }

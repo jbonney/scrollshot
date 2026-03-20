@@ -20,7 +20,7 @@ Wayland scrolling screenshot tool for wlroots-based compositors. Three-stage pip
 
 1. **selector.rs** — Layer-shell overlay for click-drag region selection. Uses mmap'd SHM buffer with incremental damage tracking for efficient rendering. Returns a `Rect`.
 
-2. **screencopy.rs** — Capture loop. Scrolls via `zwlr_virtual_pointer` (2 discrete ticks per step, 200ms settle), captures frames via `zwlr_screencopy_manager`. Stops after 2 consecutive unchanged frames. Returns `Vec<RgbaImage>` + per-frame diffs.
+2. **screencopy.rs** — Capture loop. Scrolls via `zwlr_virtual_pointer` (2 discrete ticks per step, 200ms settle), captures frames via `zwlr_screencopy_manager`. Stops after 2 consecutive unchanged frames. Returns `Vec<RgbaImage>`.
 
 3. **stitch.rs** — Merges overlapping frames. Two-phase algorithm:
    - **Scroll detection**: For every row in prev frame, find best-matching row in next (sampled SAD), vote on implied offset. Content rows overwhelm ambiguous blank rows.
@@ -45,6 +45,14 @@ ShareX's exact-row matching and wayscrollshot's voting/ambiguity concepts influe
 ## Key Design Decisions
 
 - Row-voting scroll detection handles repetitive page layouts (similar cards, tables) where template/window matching fails — tested on pages with 3 identical game card structures.
-- The `diffs` parameter in `stitch_frames()` is currently unused; scroll detection no longer needs diff-based bounds.
-- Debug frames saved as `frame_N.png` in working directory on every run.
 - SHM pixel format conversion handles both XRGB8888 and XBGR8888 byte orders.
+
+## Debug Mode
+
+Set `SCROLLSHOT_DEBUG=1` to save raw capture frames as `frame_N.png` in the current working directory after stitching:
+
+```bash
+SCROLLSHOT_DEBUG=1 ./target/release/scrollshot
+```
+
+These files are useful for inspecting what was captured before stitching and for iterating on the stitching algorithm offline with `test_stitch`.

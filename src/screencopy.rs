@@ -415,9 +415,8 @@ fn frame_diff(a: &RgbaImage, b: &RgbaImage) -> f64 {
 // ── Public entry point ────────────────────────────────────────────────────────
 
 /// Capture a scrolling screenshot of `region`.  Scrolls down until the content
-/// stops changing, then returns all captured frames and the per-transition diff
-/// values (diffs[i] = diff between frames[i] and frames[i+1]).
-pub fn capture_scrolling(region: Rect) -> Result<(Vec<RgbaImage>, Vec<f64>)> {
+/// stops changing, then returns all captured frames.
+pub fn capture_scrolling(region: Rect) -> Result<Vec<RgbaImage>> {
     let conn = Connection::connect_to_env()
         .map_err(|e| anyhow!("Cannot connect to Wayland display: {e}"))?;
     let mut queue = conn.new_event_queue();
@@ -441,7 +440,6 @@ pub fn capture_scrolling(region: Rect) -> Result<(Vec<RgbaImage>, Vec<f64>)> {
     }
 
     let mut frames: Vec<RgbaImage> = Vec::new();
-    let mut diffs: Vec<f64> = Vec::new();
     let max_frames = 200;
     // Number of consecutive "no change" captures before we stop
     let stop_threshold = 2;
@@ -488,10 +486,9 @@ pub fn capture_scrolling(region: Rect) -> Result<(Vec<RgbaImage>, Vec<f64>)> {
             }
         } else {
             no_change_streak = 0;
-            diffs.push(diff);
             frames.push(frame);
         }
     }
 
-    Ok((frames, diffs))
+    Ok(frames)
 }
