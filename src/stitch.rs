@@ -247,3 +247,156 @@ pub fn stitch_frames(frames: Vec<RgbaImage>) -> Result<RgbaImage> {
     eprintln!("  stitch: output {}x{}", frame_w, total_h);
     Ok(out)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use image::{Rgba, RgbaImage};
+
+    /// Build an image where every row has a unique colour derived from
+    /// `(row + offset) % 256`.  This guarantees unambiguous row matching,
+    /// which makes scroll detection deterministic in tests.
+    fn striped(width: u32, height: u32, offset: u32) -> RgbaImage {
+        let mut img = RgbaImage::new(width, height);
+        for y in 0..height {
+            let v = ((y + offset) % 256) as u8;
+            for x in 0..width {
+                img.put_pixel(x, y, Rgba([v, 255 - v, v / 2, 255]));
+            }
+        }
+        img
+    }
+
+    // ── row_sad helpers ──────────────────────────────────────────────────────
+
+    #[test]
+    fn row_sad_identical_rows_is_zero() {
+        let img = striped(64, 32, 0);
+        assert_eq!(row_sad_full(&img, 0, &img, 0), 0);
+        assert_eq!(row_sad_fast(&img, 5, &img, 5), 0);
+    }
+
+    #[test]
+    fn row_sad_different_rows_is_nonzero() {
+        let img = striped(64, 32, 0);
+        assert!(row_sad_full(&img, 0, &img, 1) > 0);
+        assert!(row_sad_fast(&img, 0, &img, 1) > 0);
+    }
+
+    #[test]
+    fn row_sad_fast_le_full_for_same_rows() {
+        // fast samples every 4th pixel so it can only be <= full
+        let a = striped(64, 32, 0);
+        let b = striped(64, 32, 7);
+        assert!(row_sad_fast(&a, 10, &b, 10) <= row_sad_full(&a, 10, &b, 10));
+    }
+
+    // ── find_scroll_offset ───────────────────────────────────────────────────
+
+    #[test]
+    fn scroll_offset_detects_exact_shift() {
+        let scroll = 30u32;
+        // next is prev shifted up by `scroll` rows
+        let prev = striped(64, 100, 0);
+        let next = striped(64, 100, scroll);
+        assert_eq!(find_scroll_offset(&prev, &next), Some(scroll));
+    }
+
+    #[test]
+    fn scroll_offset_rejects_image_too_narrow() {
+        let narrow = striped(4, 100, 0); // width < 8
+        let normal = striped(64, 100, 0);
+        assert_eq!(find_scroll_offset(&narrow, &normal), None);
+    }
+
+    #[test]
+    fn scroll_offset_rejects_image_too_short() {
+        let short = striped(64, 10, 0); // height < 32
+        assert_eq!(find_scroll_offset(&short, &short), None);
+    }
+
+    #[test]
+    fn scroll_offset_returns_none_for_identical_frames() {
+        // Identical frames → every row matches its counterpart at offset 0,
+        // but the condition `py > best_ny` is never true → no votes → None.
+        let img = striped(64, 100, 0);
+        assert_eq!(find_scroll_offset(&img, &img), None);
+    }
+
+    // ── find_seam ────────────────────────────────────────────────────────────
+
+    #[test]
+    fn seam_lies_within_middle_80_percent_of_overlap() {
+        let scroll = 30u32;
+        let height = 100u32;
+        let prev = striped(64, height, 0);
+        let next = striped(64, height, scroll);
+
+        let seam = find_seam(&prev, &next, scroll);
+        let overlap = height - scroll; // 70
+        let margin = overlap / 10;     // 7
+        assert!(seam >= margin, "seam {seam} below margin {margin}");
+        assert!(seam < overlap - margin, "seam {seam} at or above {}", overlap - margin);
+    }
+
+    #[test]
+    fn seam_returns_zero_when_overlap_too_small() {
+        let img = striped(64, 100, 0);
+        // scroll = 98 → overlap = 2 < 4
+        assert_eq!(find_seam(&img, &img, 98), 0);
+    }
+
+    // ── stitch_frames ────────────────────────────────────────────────────────
+
+    #[test]
+    fn stitch_single_frame_passthrough() {
+        let img = striped(64, 100, 0);
+        let result = stitch_frames(vec![img.clone()]).unwrap();
+        assert_eq!(result.dimensions(), img.dimensions());
+        assert_eq!(result.get_pixel(32, 50), img.get_pixel(32, 50));
+    }
+
+    #[test]
+    fn stitch_empty_frames_is_error() {
+        assert!(stitch_frames(vec![]).is_err());
+    }
+
+    #[test]
+    fn stitch_two_frames_height_equals_height_plus_scroll() {
+        let scroll = 30u32;
+        let height = 100u32;
+        let width = 64u32;
+        let prev = striped(width, height, 0);
+        let next = striped(width, height, scroll);
+
+        let result = stitch_frames(vec![prev, next]).unwrap();
+
+        // Total rows = first_slice (scroll + seam) + second_slice (height - seam)
+        //            = scroll + height, regardless of seam position.
+        assert_eq!(result.width(), width);
+        assert_eq!(result.height(), height + scroll);
+    }
+
+    #[test]
+    fn stitch_two_frames_pixel_continuity() {
+        // The top of the output should come from frame 0 (offset 0) and the
+        // bottom should come from frame 1 (offset = scroll), so the colour at
+        // any row should equal its y-coordinate modulo 256.
+        let scroll = 30u32;
+        let height = 100u32;
+        let prev = striped(64, height, 0);
+        let next = striped(64, height, scroll);
+
+        let result = stitch_frames(vec![prev, next]).unwrap();
+
+        for y in 0..result.height() {
+            let expected_v = (y % 256) as u8;
+            let pixel = result.get_pixel(0, y);
+            assert_eq!(
+                pixel[0], expected_v,
+                "wrong colour at row {y}: got {} expected {expected_v}",
+                pixel[0]
+            );
+        }
+    }
+}
