@@ -57,6 +57,15 @@ Use `--debug` to save raw frames, then iterate on stitching with `scrollshot -i 
 2. **Capture loop** — Scrolls down using virtual pointer events, waits for rendering, then captures via screencopy. Scroll speed and settle time are configurable via `--scroll-ticks` and `--scroll-delay`. Stops when content stops changing.
 3. **Stitching** — Detects scroll offsets between frames using row-by-row voting (every row in the previous frame is matched against the next frame; the most-voted offset wins). Cuts are placed at the row where both frames are most pixel-similar, hiding seam artifacts.
 
+## Limitations
+
+The stitched result may contain artifacts depending on the page content:
+
+- **Repeated content** — Pages with many similar elements (identical cards, table rows) can cause the algorithm to misalign, duplicating some sections.
+- **Missing whitespace** — Large blank areas or empty lines may be partially collapsed, since they look identical across frames.
+
+If you notice issues, try adjusting `--scroll-delay` or `--scroll-ticks`, and use `--debug` to inspect the raw frames and verify all content was captured.
+
 ## Built with Claude
 
 This entire application was generated using [Claude](https://claude.ai) (Anthropic's AI assistant) via [Claude Code](https://claude.ai/claude-code).
