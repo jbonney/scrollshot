@@ -21,20 +21,45 @@ cargo build --release
 ## Usage
 
 ```bash
-./target/release/scrollshot
+scrollshot                          # capture and save to scrollshot_{timestamp}.png
+scrollshot output.png               # capture and save to output.png
+scrollshot -o output.png            # same, with explicit flag
+scrollshot -i ./frames/             # stitch pre-captured frames from a directory
+scrollshot -i ./frames/ -o out.png  # stitch frames with explicit output
+scrollshot --scroll-delay 300       # wait 300ms between scrolls (default 200)
+scrollshot --scroll-ticks 3         # 3 scroll ticks per step (default 2)
+scrollshot --debug                  # save raw frames as frame_N.png for inspection
 ```
+
+### Options
+
+| Flag | Description |
+|---|---|
+| `-o, --output <FILE>` | Output file path (default: `scrollshot_{timestamp}.png`) |
+| `-i, --input <DIR>` | Stitch `frame_N.png` files from a directory instead of capturing |
+| `--scroll-delay <MS>` | Milliseconds to wait after each scroll for re-render (default: 200) |
+| `--scroll-ticks <N>` | Discrete scroll wheel ticks per step (default: 2) |
+| `--debug` | Save raw capture frames as `frame_N.png` before stitching |
+
+### Workflow
 
 1. A fullscreen overlay appears — click and drag to select the region to capture.
 2. The tool auto-scrolls the content and captures frames.
-3. Frames are stitched into a single image and saved as `test.png`.
+3. Frames are stitched into a single image and saved.
 
 Right-click or press ESC to cancel during selection.
+
+Use `--debug` to save raw frames, then iterate on stitching with `scrollshot -i .` without re-capturing.
 
 ## How it works
 
 1. **Region selection** — A transparent overlay (layer-shell) lets you draw a rectangle over the area to capture.
-2. **Capture loop** — Scrolls down using virtual pointer events (2 scroll ticks per step), waits 200ms for rendering, then captures via screencopy. Stops when content stops changing.
+2. **Capture loop** — Scrolls down using virtual pointer events, waits for rendering, then captures via screencopy. Scroll speed and settle time are configurable via `--scroll-ticks` and `--scroll-delay`. Stops when content stops changing.
 3. **Stitching** — Detects scroll offsets between frames using row-by-row voting (every row in the previous frame is matched against the next frame; the most-voted offset wins). Cuts are placed at the row where both frames are most pixel-similar, hiding seam artifacts.
+
+## Built with Claude
+
+This entire application was generated using [Claude](https://claude.ai) (Anthropic's AI assistant) via [Claude Code](https://claude.ai/claude-code).
 
 ## Acknowledgements
 

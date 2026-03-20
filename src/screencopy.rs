@@ -28,10 +28,6 @@ const DIFF_THRESHOLD: f64 = 1.5;
 const STOP_STREAK: usize = 2;
 /// Maximum frames to capture regardless of content changes.
 const MAX_FRAMES: usize = 200;
-/// Milliseconds to wait after each scroll for the page to re-render.
-const SETTLE_MS: u64 = 200;
-/// Discrete scroll wheel ticks per step (balance between speed and overlap).
-const SCROLL_TICKS: i32 = 2;
 /// Maximum attempts to wait for the first frame to stabilize (e.g. lazy images).
 const STABILIZE_ATTEMPTS: usize = 10;
 
@@ -442,7 +438,12 @@ fn frame_diff(a: &RgbaImage, b: &RgbaImage) -> f64 {
 /// Capture a scrolling screenshot of `region` on the output identified by
 /// `output_global_name` (the Wayland registry global name returned by
 /// `selector::select_region`).  Pass 0 to fall back to the first available output.
-pub fn capture_scrolling(region: Rect, output_global_name: u32) -> Result<Vec<RgbaImage>> {
+pub fn capture_scrolling(
+    region: Rect,
+    output_global_name: u32,
+    settle_ms: u64,
+    scroll_ticks: i32,
+) -> Result<Vec<RgbaImage>> {
     let conn = Connection::connect_to_env()
         .map_err(|e| anyhow!("Cannot connect to Wayland display: {e}"))?;
     let mut queue = conn.new_event_queue();
@@ -473,7 +474,7 @@ pub fn capture_scrolling(region: Rect, output_global_name: u32) -> Result<Vec<Rg
     let first = capture_one(&mut state, &mut queue, region)?;
     frames.push(first);
     for attempt in 0..STABILIZE_ATTEMPTS {
-        std::thread::sleep(std::time::Duration::from_millis(SETTLE_MS));
+        std::thread::sleep(std::time::Duration::from_millis(settle_ms));
         let probe = capture_one(&mut state, &mut queue, region)?;
         let diff = frame_diff(frames.last().unwrap(), &probe);
         if diff < DIFF_THRESHOLD {
@@ -492,10 +493,10 @@ pub fn capture_scrolling(region: Rect, output_global_name: u32) -> Result<Vec<Rg
             break;
         }
 
-        scroll_down(&mut state, &mut queue, region, SCROLL_TICKS)?;
+        scroll_down(&mut state, &mut queue, region, scroll_ticks)?;
 
         // Wait for the page to render
-        std::thread::sleep(std::time::Duration::from_millis(SETTLE_MS));
+        std::thread::sleep(std::time::Duration::from_millis(settle_ms));
 
         let frame = capture_one(&mut state, &mut queue, region)?;
         let diff = frame_diff(frames.last().unwrap(), &frame);

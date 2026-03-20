@@ -8,8 +8,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 cargo build --release          # main binary
 cargo build --release --bin test_stitch  # standalone stitch tester
 
-./target/release/scrollshot    # run (select region, auto-scroll, stitch, save PNG)
-./target/release/test_stitch   # stitch frame_*.png files in current directory → stitched.png
+./target/release/scrollshot                      # capture, stitch, save to scrollshot_{ts}.png
+./target/release/scrollshot -o out.png           # capture with explicit output path
+./target/release/scrollshot -i ./frames/         # stitch pre-captured frames from directory
+./target/release/scrollshot --debug              # save raw frames as frame_N.png
+./target/release/scrollshot --scroll-delay 300   # slower settle (default 200ms)
+./target/release/scrollshot --scroll-ticks 3     # more scroll per step (default 2)
+./target/release/test_stitch   # standalone stitch tester (loads frame_N.png from cwd)
 ```
 
 No tests or linter configured.
@@ -20,7 +25,7 @@ Wayland scrolling screenshot tool for wlroots-based compositors. Three-stage pip
 
 1. **selector.rs** — Layer-shell overlay for click-drag region selection. Uses mmap'd SHM buffer with incremental damage tracking for efficient rendering. Returns a `Rect`.
 
-2. **screencopy.rs** — Capture loop. Scrolls via `zwlr_virtual_pointer` (2 discrete ticks per step, 200ms settle), captures frames via `zwlr_screencopy_manager`. Stops after 2 consecutive unchanged frames. Returns `Vec<RgbaImage>`.
+2. **screencopy.rs** — Capture loop. Scrolls via `zwlr_virtual_pointer` (configurable ticks/delay via CLI), captures frames via `zwlr_screencopy_manager`. Stops after 2 consecutive unchanged frames. Returns `Vec<RgbaImage>`.
 
 3. **stitch.rs** — Merges overlapping frames. Two-phase algorithm:
    - **Scroll detection**: For every row in prev frame, find best-matching row in next (sampled SAD), vote on implied offset. Content rows overwhelm ambiguous blank rows.
@@ -49,10 +54,10 @@ ShareX's exact-row matching and wayscrollshot's voting/ambiguity concepts influe
 
 ## Debug Mode
 
-Set `SCROLLSHOT_DEBUG=1` to save raw capture frames as `frame_N.png` in the current working directory after stitching:
+Use `--debug` (or set `SCROLLSHOT_DEBUG=1`) to save raw capture frames as `frame_N.png` in the current working directory before stitching:
 
 ```bash
-SCROLLSHOT_DEBUG=1 ./target/release/scrollshot
+scrollshot --debug
 ```
 
-These files are useful for inspecting what was captured before stitching and for iterating on the stitching algorithm offline with `test_stitch`.
+These files can then be re-stitched offline with `scrollshot -i .` or `test_stitch`.

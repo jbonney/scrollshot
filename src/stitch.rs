@@ -150,16 +150,6 @@ pub fn stitch_frames(frames: Vec<RgbaImage>) -> Result<RgbaImage> {
     let frame_w = frames[0].width();
     let frame_h = frames[0].height() as usize;
 
-    // Debug: save each raw frame for inspection (opt-in via SCROLLSHOT_DEBUG=1).
-    if std::env::var_os("SCROLLSHOT_DEBUG").is_some() {
-        for (i, frame) in frames.iter().enumerate() {
-            let path = format!("frame_{}.png", i + 1);
-            if let Err(e) = frame.save(&path) {
-                eprintln!("  stitch: could not save {}: {}", path, e);
-            }
-        }
-    }
-
     // Step 1: find scroll offsets and seam rows for each consecutive pair.
     let mut scrolls: Vec<usize> = Vec::new();
     let mut seams: Vec<usize> = Vec::new();
