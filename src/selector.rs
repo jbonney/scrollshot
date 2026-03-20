@@ -18,7 +18,14 @@ const BTN_LEFT: u32 = 0x110;
 const BTN_RIGHT: u32 = 0x111;
 const KEY_ESC: u32 = 1; // evdev keycode
 
-// The mmap pointer is only ever accessed from the single-threaded event loop
+// SAFETY: SelectorState contains a raw `*mut u8` (overlay_mmap) which is not
+// Send/Sync by default.  It is safe to assert both traits here because:
+//   1. The state is created, used, and dropped entirely within `select_region`,
+//      which never moves it across threads.
+//   2. The Wayland event queue (`blocking_dispatch`) is driven single-threadedly
+//      in that same function; no other thread ever touches the pointer.
+//   3. The mmap region is unmapped in `Drop` before the state leaves scope.
+// If this code is ever refactored to use threads, these impls must be revisited.
 unsafe impl Send for SelectorState {}
 unsafe impl Sync for SelectorState {}
 
