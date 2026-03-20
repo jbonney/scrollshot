@@ -6,7 +6,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 cargo build --release          # main binary
-cargo build --release --bin test_stitch  # standalone stitch tester
 
 ./target/release/scrollshot                      # capture, stitch, save to scrollshot_{ts}.png
 ./target/release/scrollshot -o out.png           # capture with explicit output path
@@ -14,7 +13,6 @@ cargo build --release --bin test_stitch  # standalone stitch tester
 ./target/release/scrollshot --debug              # save raw frames as frame_N.png
 ./target/release/scrollshot --scroll-delay 300   # slower settle (default 200ms)
 ./target/release/scrollshot --scroll-ticks 3     # more scroll per step (default 2)
-./target/release/test_stitch   # standalone stitch tester (loads frame_N.png from cwd)
 ```
 
 No tests or linter configured.
@@ -31,8 +29,6 @@ Wayland scrolling screenshot tool for wlroots-based compositors. Three-stage pip
    - **Scroll detection**: For every row in prev frame, find best-matching row in next (sampled SAD), vote on implied offset. Content rows overwhelm ambiguous blank rows.
    - **Seam finding**: Within overlap, cut at the row where both frames are most pixel-similar (full-width SAD, middle 80% of overlap).
    - Slices are assembled: frame 1 up to `scroll+seam`, each subsequent frame from its seam row to the next frame's `scroll+seam`, last frame to bottom.
-
-**bin/test_stitch.rs** — Standalone offline stitcher for algorithm development. Loads `frame_N.png` files, applies same algorithm, saves `stitched.png`.
 
 ## Wayland Protocols
 
@@ -60,4 +56,4 @@ Use `--debug` (or set `SCROLLSHOT_DEBUG=1`) to save raw capture frames as `frame
 scrollshot --debug
 ```
 
-These files can then be re-stitched offline with `scrollshot -i .` or `test_stitch`.
+These files can then be re-stitched offline with `scrollshot -i .`.

@@ -3,6 +3,8 @@ name = "scrollshot"
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
+description = "Scrolling screenshot tool for wlroots-based Wayland compositors"
+repository = "https://github.com/jbonney/scrollshot"
 
 [[bin]]
 name = "scrollshot"
