@@ -1,0 +1,28 @@
+[package]
+name = "scrollshot"
+version = "0.1.0"
+edition = "2024"
+
+[[bin]]
+name = "scrollshot"
+path = "src/main.rs"
+
+[dependencies]
+# Wayland client
+wayland-client = "0.31"
+wayland-protocols = { version = "0.31", features = ["client"] }
+wayland-protocols-wlr = { version = "0.2", features = ["client"] }
+
+# Image processing
+image = "0.25"
+
+# Error handling
+anyhow = "1"
+tempfile = "3.27.0"
+libc = "0.2.183"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true

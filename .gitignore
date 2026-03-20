@@ -1,0 +1,5 @@
+# Ignore build folder
+/target
+
+# Ignore all images generated
+*.png
