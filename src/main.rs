@@ -26,8 +26,8 @@ fn main() -> Result<()> {
         });
 
     eprintln!("Click and drag to select a region (right-click or ESC to cancel)...");
-    let region = match selector::select_region()? {
-        Some(r) if r.width > 0 && r.height > 0 => r,
+    let (region, output_global) = match selector::select_region()? {
+        Some((r, o)) if r.width > 0 && r.height > 0 => (r, o),
         _ => {
             eprintln!("No region selected.");
             return Ok(());
@@ -42,7 +42,7 @@ fn main() -> Result<()> {
     // Small delay so the overlay is fully gone before we start scrolling
     std::thread::sleep(std::time::Duration::from_millis(150));
 
-    let frames = screencopy::capture_scrolling(region)?;
+    let frames = screencopy::capture_scrolling(region, output_global)?;
     eprintln!("Captured {} frames", frames.len());
 
     if frames.is_empty() {

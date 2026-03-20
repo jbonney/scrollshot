@@ -63,6 +63,9 @@ struct CaptureState {
     // Output size (for virtual pointer motion_absolute)
     output_w: u32,
     output_h: u32,
+
+    // Registry global name of the output to capture (0 = first available).
+    output_global_name: u32,
 }
 
 impl CaptureState {
@@ -79,6 +82,7 @@ impl CaptureState {
             capture_buf: None,
             output_w: 0,
             output_h: 0,
+            output_global_name: 0,
         }
     }
 }
@@ -100,7 +104,13 @@ impl Dispatch<wl_registry::WlRegistry, ()> for CaptureState {
                     state.shm = Some(registry.bind(name, version.min(1), qh, ()));
                 }
                 "wl_output" => {
-                    state.output = Some(registry.bind(name, version.min(3), qh, ()));
+                    // Bind only the output the selector was displayed on.
+                    // global name 0 means "first available" (fallback).
+                    if state.output.is_none()
+                        && (state.output_global_name == 0 || name == state.output_global_name)
+                    {
+                        state.output = Some(registry.bind(name, version.min(3), qh, ()));
+                    }
                 }
                 "wl_seat" => {
                     state.seat = Some(registry.bind(name, version.min(7), qh, ()));
@@ -429,9 +439,10 @@ fn frame_diff(a: &RgbaImage, b: &RgbaImage) -> f64 {
 
 // ── Public entry point ────────────────────────────────────────────────────────
 
-/// Capture a scrolling screenshot of `region`.  Scrolls down until the content
-/// stops changing, then returns all captured frames.
-pub fn capture_scrolling(region: Rect) -> Result<Vec<RgbaImage>> {
+/// Capture a scrolling screenshot of `region` on the output identified by
+/// `output_global_name` (the Wayland registry global name returned by
+/// `selector::select_region`).  Pass 0 to fall back to the first available output.
+pub fn capture_scrolling(region: Rect, output_global_name: u32) -> Result<Vec<RgbaImage>> {
     let conn = Connection::connect_to_env()
         .map_err(|e| anyhow!("Cannot connect to Wayland display: {e}"))?;
     let mut queue = conn.new_event_queue();
@@ -440,6 +451,7 @@ pub fn capture_scrolling(region: Rect) -> Result<Vec<RgbaImage>> {
     conn.display().get_registry(&qh, ());
 
     let mut state = CaptureState::new();
+    state.output_global_name = output_global_name;
     queue.roundtrip(&mut state)?;
     queue.roundtrip(&mut state)?; // second roundtrip to get output geometry
 

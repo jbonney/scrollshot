@@ -41,6 +41,13 @@ struct SelectorState {
     layer_surface: Option<zwlr_layer_surface_v1::ZwlrLayerSurfaceV1>,
     pointer: Option<wl_pointer::WlPointer>,
 
+    // All advertised outputs: (registry global name, proxy).
+    // The global name is stable within a compositor session and matches across
+    // Wayland connections, so we use it to tell screencopy which output to capture.
+    outputs: Vec<(u32, wl_output::WlOutput)>,
+    // Registry global name of the output our overlay surface entered first.
+    entered_output_global: Option<u32>,
+
     // From wl_output::mode (physical resolution, used as fallback)
     screen_w: u32,
     screen_h: u32,
@@ -87,6 +94,8 @@ impl SelectorState {
             surface: None,
             layer_surface: None,
             pointer: None,
+            outputs: Vec::new(),
+            entered_output_global: None,
             screen_w: 0,
             screen_h: 0,
             output_ready: false,
@@ -430,7 +439,10 @@ impl Dispatch<wl_registry::WlRegistry, ()> for SelectorState {
                     state.seat = Some(seat);
                 }
                 "wl_output" => {
-                    let _: wl_output::WlOutput = registry.bind(name, version.min(3), qh, ());
+                    // Pass the global name as user data so the Enter handler can
+                    // map the proxy back to its global name without a hash map.
+                    let output: wl_output::WlOutput = registry.bind(name, version.min(3), qh, name);
+                    state.outputs.push((name, output));
                 }
                 "zwlr_layer_shell_v1" => {
                     state.layer_shell = Some(registry.bind(name, version.min(4), qh, ()));
@@ -442,21 +454,24 @@ impl Dispatch<wl_registry::WlRegistry, ()> for SelectorState {
     }
 }
 
-impl Dispatch<wl_output::WlOutput, ()> for SelectorState {
+impl Dispatch<wl_output::WlOutput, u32> for SelectorState {
     fn event(
         state: &mut Self,
         _: &wl_output::WlOutput,
         event: wl_output::Event,
-        _: &(),
+        _: &u32,
         _: &Connection,
         qh: &QueueHandle<Self>,
     ) {
         if let wl_output::Event::Mode { width, height, .. } = event {
             if width > 0 && height > 0 {
-                state.screen_w = width as u32;
-                state.screen_h = height as u32;
-                state.output_ready = true;
-                state.try_create_surface(qh);
+                // Use the first output's dimensions as the fallback canvas size.
+                if !state.output_ready {
+                    state.screen_w = width as u32;
+                    state.screen_h = height as u32;
+                    state.output_ready = true;
+                    state.try_create_surface(qh);
+                }
             }
         }
     }
@@ -618,7 +633,27 @@ impl Drop for SelectorState {
 }
 
 delegate_noop!(SelectorState: ignore wl_compositor::WlCompositor);
-delegate_noop!(SelectorState: ignore wl_surface::WlSurface);
+
+impl Dispatch<wl_surface::WlSurface, ()> for SelectorState {
+    fn event(
+        state: &mut Self,
+        _: &wl_surface::WlSurface,
+        event: wl_surface::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        if let wl_surface::Event::Enter { output } = event {
+            // Record the first output our overlay enters — this is the output
+            // the compositor placed us on and the one we should capture.
+            if state.entered_output_global.is_none() {
+                state.entered_output_global = state.outputs.iter()
+                    .find(|(_, o)| o == &output)
+                    .map(|(name, _)| *name);
+            }
+        }
+    }
+}
 delegate_noop!(SelectorState: ignore wl_shm::WlShm);
 delegate_noop!(SelectorState: ignore wl_shm_pool::WlShmPool);
 delegate_noop!(SelectorState: ignore wl_buffer::WlBuffer);
@@ -626,7 +661,10 @@ delegate_noop!(SelectorState: ignore zwlr_layer_shell_v1::ZwlrLayerShellV1);
 
 // ── Public entry point ────────────────────────────────────────────────────────
 
-pub fn select_region() -> Result<Option<Rect>> {
+/// Returns the selected region and the Wayland registry global name of the
+/// output the overlay was displayed on.  The caller should pass the global name
+/// to `screencopy::capture_scrolling` so both stages operate on the same output.
+pub fn select_region() -> Result<Option<(Rect, u32)>> {
     let conn = Connection::connect_to_env()
         .map_err(|e| anyhow!("Cannot connect to Wayland display: {e}"))?;
     let mut queue = conn.new_event_queue();
@@ -658,5 +696,9 @@ pub fn select_region() -> Result<Option<Rect>> {
     if state.cancelled {
         return Ok(None);
     }
-    Ok(state.result_rect())
+    if state.entered_output_global.is_none() {
+        eprintln!("Warning: could not determine which output the selector was on; \
+                   will capture the first available output.");
+    }
+    Ok(state.result_rect().map(|r| (r, state.entered_output_global.unwrap_or(0))))
 }
