@@ -11,14 +11,16 @@ srcinfo-git:
 srcinfo-bin:
 	cd bin && makepkg --printsrcinfo > .SRCINFO
 
-## Clone AUR repo, copy PKGBUILD + .SRCINFO, commit and push scrollshot-git
+## Clone/update AUR repo, copy PKGBUILD + .SRCINFO, commit and push scrollshot-git
 publish-git: srcinfo-git
-	git clone ssh://aur@aur.archlinux.org/scrollshot-git.git $(AUR_GIT_DIR) 2>/dev/null || true
+	@if [ -d $(AUR_GIT_DIR) ]; then cd $(AUR_GIT_DIR) && git pull; \
+	else git clone ssh://aur@aur.archlinux.org/scrollshot-git.git $(AUR_GIT_DIR); fi
 	cp PKGBUILD .SRCINFO $(AUR_GIT_DIR)/
 	cd $(AUR_GIT_DIR) && git add PKGBUILD .SRCINFO && git commit -m "Update to $$(grep pkgver PKGBUILD | head -1 | cut -d= -f2)" && git push
 
-## Clone AUR repo, copy PKGBUILD + .SRCINFO, commit and push scrollshot-bin
+## Clone/update AUR repo, copy PKGBUILD + .SRCINFO, commit and push scrollshot-bin
 publish-bin: srcinfo-bin
-	git clone ssh://aur@aur.archlinux.org/scrollshot-bin.git $(AUR_BIN_DIR) 2>/dev/null || true
+	@if [ -d $(AUR_BIN_DIR) ]; then cd $(AUR_BIN_DIR) && git pull; \
+	else git clone ssh://aur@aur.archlinux.org/scrollshot-bin.git $(AUR_BIN_DIR); fi
 	cp bin/PKGBUILD bin/.SRCINFO $(AUR_BIN_DIR)/
 	cd $(AUR_BIN_DIR) && git add PKGBUILD .SRCINFO && git commit -m "Update to $$(grep pkgver PKGBUILD | head -1 | cut -d= -f2)" && git push

@@ -10,6 +10,7 @@ depends=('wayland')
 makedepends=('cargo' 'git')
 provides=('scrollshot')
 conflicts=('scrollshot')
+options=(!debug)
 source=("git+${url}.git")
 sha256sums=('SKIP')
 

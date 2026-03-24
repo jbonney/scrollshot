@@ -76,6 +76,7 @@ jobs:
           depends=('wayland')
           provides=('scrollshot')
           conflicts=('scrollshot' 'scrollshot-git')
+          options=(!debug)
           source=("${url}/releases/download/v${pkgver}/scrollshot-v${pkgver}-x86_64-linux.tar.gz")
           sha256sums=('${{ steps.checksum.outputs.sha256 }}')
 

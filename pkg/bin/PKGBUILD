@@ -9,6 +9,7 @@ license=('MIT')
 depends=('wayland')
 provides=('scrollshot')
 conflicts=('scrollshot' 'scrollshot-git')
+options=(!debug)
 source=("${url}/releases/download/v${pkgver}/scrollshot-v${pkgver}-x86_64-linux.tar.gz")
 sha256sums=('SKIP')  # Update after first release
 
