@@ -12,7 +12,23 @@ A scrolling screenshot tool for Wayland (wlroots-based compositors). Select a re
 
 Will **not** work on GNOME or KDE compositors.
 
-## Build
+## Installation
+
+### Arch Linux (AUR)
+
+```bash
+yay -S scrollshot-git
+```
+
+Or manually:
+
+```bash
+git clone https://github.com/jbonney/scrollshot
+cd scrollshot
+makepkg -si
+```
+
+### From source
 
 ```bash
 cargo build --release
