@@ -1,0 +1,97 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y libwayland-dev
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build
+        run: cargo build --release
+
+      - name: Package
+        run: |
+          tar czf scrollshot-${GITHUB_REF_NAME}-x86_64-linux.tar.gz \
+            -C target/release scrollshot \
+            -C "${GITHUB_WORKSPACE}" LICENSE README.md
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: scrollshot-*.tar.gz
+          generate_release_notes: true
+
+  aur-publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get version from tag
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Get tarball checksum
+        id: checksum
+        run: |
+          url="https://github.com/jbonney/scrollshot/releases/download/${GITHUB_REF_NAME}/scrollshot-${GITHUB_REF_NAME}-x86_64-linux.tar.gz"
+          # Wait for the release asset to be available
+          for i in $(seq 1 30); do
+            if sha=$(curl -sL "$url" | sha256sum | cut -d' ' -f1) && [ ${#sha} -eq 64 ]; then
+              echo "sha256=${sha}" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "Failed to get checksum" && exit 1
+
+      - name: Generate PKGBUILD
+        run: |
+          cat > PKGBUILD << 'HEREDOC'
+          # Maintainer: Jimmy Bonney <jimmy at furtivebot dot com>
+          pkgname=scrollshot-bin
+          pkgver=${{ steps.version.outputs.version }}
+          pkgrel=1
+          pkgdesc="Wayland scrolling screenshot tool for wlroots-based compositors"
+          arch=('x86_64')
+          url="https://github.com/jbonney/scrollshot"
+          license=('MIT')
+          depends=('wayland')
+          provides=('scrollshot')
+          conflicts=('scrollshot' 'scrollshot-git')
+          source=("${url}/releases/download/v${pkgver}/scrollshot-v${pkgver}-x86_64-linux.tar.gz")
+          sha256sums=('${{ steps.checksum.outputs.sha256 }}')
+
+          package() {
+              install -Dm755 "scrollshot" "${pkgdir}/usr/bin/scrollshot"
+              install -Dm644 "LICENSE" "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
+          }
+          HEREDOC
+          sed -i 's/^          //' PKGBUILD
+
+      - name: Publish to AUR
+        uses: KSXGitHub/github-actions-deploy-aur@v3.0.1
+        with:
+          pkgname: scrollshot-bin
+          pkgbuild: ./PKGBUILD
+          commit_username: Jimmy Bonney
+          commit_email: jimmy@furtivebot.com
+          ssh_private_key: ${{ secrets.AUR_SSH_KEY }}
+          commit_message: "Update to ${{ steps.version.outputs.version }}"
