@@ -24,6 +24,8 @@ Examples:
   scrollshot -o output.png            Same, with explicit flag
   scrollshot -i ./frames/             Stitch pre-captured frames from a directory
   scrollshot -i ./frames/ -o out.png  Stitch frames with explicit output
+  scrollshot -i ./frames/ --cleanup   Stitch frames and delete the directory afterwards
+  scrollshot --capture-only ./frames/ Capture frames only, skip stitching
   scrollshot --scroll-delay 300       Wait 300ms between scrolls (default 200)
   scrollshot --scroll-ticks 3         3 scroll ticks per step (default 2)
   scrollshot --debug                  Save raw frames as frame_N.png for inspection")]
@@ -36,6 +38,10 @@ struct Cli {
     #[arg(short, long, value_name = "FILE")]
     output: Option<PathBuf>,
 
+    /// Capture frames and save to DIR without stitching
+    #[arg(long, value_name = "DIR")]
+    capture_only: Option<PathBuf>,
+
     /// Milliseconds to wait after each scroll for the page to re-render
     #[arg(long, default_value_t = 200)]
     scroll_delay: u64,
@@ -43,6 +49,10 @@ struct Cli {
     /// Discrete scroll wheel ticks per step
     #[arg(long, default_value_t = 2)]
     scroll_ticks: i32,
+
+    /// Delete the input frames directory after stitching (only with -i)
+    #[arg(long)]
+    cleanup: bool,
 
     /// Save raw capture frames as frame_N.png for debugging
     #[arg(long)]
@@ -125,6 +135,17 @@ fn main() -> Result<()> {
         captured
     };
 
+    if let Some(ref frames_dir) = cli.capture_only {
+        std::fs::create_dir_all(frames_dir)?;
+        for (i, frame) in frames.iter().enumerate() {
+            let path = frames_dir.join(format!("frame_{}.png", i + 1));
+            frame.save(&path)?;
+            eprintln!("Saved {}", path.display());
+        }
+        eprintln!("Capture complete ({} frames). Stitch with: scrollshot -i {}", frames.len(), frames_dir.display());
+        return Ok(());
+    }
+
     if cli.debug || std::env::var_os("SCROLLSHOT_DEBUG").is_some() {
         for (i, frame) in frames.iter().enumerate() {
             let path = format!("frame_{}.png", i + 1);
@@ -138,6 +159,14 @@ fn main() -> Result<()> {
     let result = stitch::stitch_frames(frames)?;
     result.save(&output_path)?;
     eprintln!("Saved to: {}", output_path.display());
+
+    if cli.cleanup {
+        if let Some(ref input_dir) = cli.input {
+            std::fs::remove_dir_all(input_dir)?;
+        } else {
+            eprintln!("Warning: --cleanup has no effect without -i");
+        }
+    }
 
     Ok(())
 }
