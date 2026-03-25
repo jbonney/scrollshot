@@ -7,12 +7,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 cargo build --release          # main binary
 
-./target/release/scrollshot                      # capture, stitch, save to scrollshot_{ts}.png
-./target/release/scrollshot -o out.png           # capture with explicit output path
-./target/release/scrollshot -i ./frames/         # stitch pre-captured frames from directory
-./target/release/scrollshot --debug              # save raw frames as frame_N.png
-./target/release/scrollshot --scroll-delay 300   # slower settle (default 200ms)
-./target/release/scrollshot --scroll-ticks 3     # more scroll per step (default 2)
+./target/release/scrollshot                           # capture, stitch, save to scrollshot_{ts}.png
+./target/release/scrollshot -o out.png                # capture with explicit output path
+./target/release/scrollshot -i ./frames/              # stitch pre-captured frames from directory
+./target/release/scrollshot -i ./frames/ --cleanup    # stitch and delete frames directory afterwards
+./target/release/scrollshot --capture-only ./frames/  # capture frames only, skip stitching
+./target/release/scrollshot --debug                   # save raw frames as frame_N.png
+./target/release/scrollshot --scroll-delay 300        # slower settle (default 200ms)
+./target/release/scrollshot --scroll-ticks 3          # more scroll per step (default 2)
 ```
 
 No tests or linter configured.
@@ -57,3 +59,5 @@ scrollshot --debug
 ```
 
 These files can then be re-stitched offline with `scrollshot -i .`.
+
+Use `--capture-only <DIR>` to save frames to a specific directory without stitching, then stitch separately with `scrollshot -i <DIR> --cleanup`.

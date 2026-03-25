@@ -35,6 +35,8 @@ scrollshot output.png               # capture and save to output.png
 scrollshot -o output.png            # same, with explicit flag
 scrollshot -i ./frames/             # stitch pre-captured frames from a directory
 scrollshot -i ./frames/ -o out.png  # stitch frames with explicit output
+scrollshot -i ./frames/ --cleanup   # stitch frames and delete the directory afterwards
+scrollshot --capture-only ./frames/ # capture frames only, skip stitching
 scrollshot --scroll-delay 300       # wait 300ms between scrolls (default 200)
 scrollshot --scroll-ticks 3         # 3 scroll ticks per step (default 2)
 scrollshot --debug                  # save raw frames as frame_N.png for inspection
@@ -46,6 +48,8 @@ scrollshot --debug                  # save raw frames as frame_N.png for inspect
 |---|---|
 | `-o, --output <FILE>` | Output file path (default: `scrollshot_{timestamp}.png`) |
 | `-i, --input <DIR>` | Stitch `frame_N.png` files from a directory instead of capturing |
+| `--capture-only <DIR>` | Capture frames and save to DIR without stitching |
+| `--cleanup` | Delete the input frames directory after stitching (only with `-i`) |
 | `--scroll-delay <MS>` | Milliseconds to wait after each scroll for re-render (default: 200) |
 | `--scroll-ticks <N>` | Discrete scroll wheel ticks per step (default: 2) |
 | `--debug` | Save raw capture frames as `frame_N.png` before stitching |
@@ -58,7 +62,7 @@ scrollshot --debug                  # save raw frames as frame_N.png for inspect
 
 Right-click or press ESC to cancel during selection.
 
-Use `--debug` to save raw frames, then iterate on stitching with `scrollshot -i .` without re-capturing.
+Use `--capture-only` to save raw frames, then stitch later with `scrollshot -i ./frames/ --cleanup`. This is useful for iterating on stitching without re-capturing, or for running capture and stitch as separate steps (e.g. to show a notification between them).
 
 ## How it works
 
