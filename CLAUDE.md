@@ -19,6 +19,10 @@ cargo build --release          # main binary
 
 No tests or linter configured.
 
+## Maintenance
+
+Keep `README.md` in sync with any changes to CLI flags, usage examples, or behaviour. This includes the usage code block, the options table, and the workflow/debug sections.
+
 ## Architecture
 
 Wayland scrolling screenshot tool for wlroots-based compositors. Three-stage pipeline:
