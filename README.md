@@ -17,15 +17,8 @@ Will **not** work on GNOME or KDE compositors.
 ### Arch Linux (AUR)
 
 ```bash
-yay -S scrollshot-git
-```
-
-Or manually:
-
-```bash
-git clone https://github.com/jbonney/scrollshot
-cd scrollshot
-makepkg -si
+yay -S scrollshot-bin   # prebuilt binary (recommended)
+yay -S scrollshot-git   # build from latest git commit
 ```
 
 ### From source
