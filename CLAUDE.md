@@ -23,6 +23,24 @@ No tests or linter configured.
 
 Keep `README.md` in sync with any changes to CLI flags, usage examples, or behaviour. This includes the usage code block, the options table, and the workflow/debug sections.
 
+## Releasing a New Version
+
+1. Update the version in `Cargo.toml` (e.g. `version = "0.1.2"`)
+2. Run `cargo build --release` to update `Cargo.lock`
+3. Commit both files: `git add Cargo.toml Cargo.lock && git commit -m "chore: bump version to X.Y.Z"`
+4. Push the commit: `git push origin main`
+5. Create and push a tag — **the tag must start with `v`** or the CI pipeline will not trigger:
+   ```bash
+   git tag vX.Y.Z
+   git push origin vX.Y.Z
+   ```
+
+If a tag needs to be moved to a new commit (e.g. version was forgotten before tagging):
+```bash
+git tag -f vX.Y.Z
+git push origin vX.Y.Z --force
+```
+
 ## Architecture
 
 Wayland scrolling screenshot tool for wlroots-based compositors. Three-stage pipeline:
